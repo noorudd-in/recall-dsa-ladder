@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Recall is a DSA tracker that schedules spaced-repetition reviews for every problem you solve. Everything stays in your browser." />
+    <meta name="theme-color" content="#2C3EF2" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Recall - DSA Ladder</title>
+    <script>
+      // Apply the saved theme before first paint so there is no flash of the wrong colours.
+      (function () {
+        try {
+          var pref = localStorage.getItem('recall.theme') || 'system';
+          var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
