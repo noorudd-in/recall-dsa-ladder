@@ -37,6 +37,13 @@ function rawKey({ url, title }) {
   const gfg = /geeksforgeeks\.org\/problems\/([^/?#]+)/i.exec(raw);
   if (gfg) return `gfg:${gfg[1].toLowerCase()}`;
 
+  const cf = /codeforces\.com\/(?:contest\/(\d+)\/problem\/([a-zA-Z0-9]+)|problemset\/problem\/(\d+)\/([a-zA-Z0-9]+)|gym\/(\d+)\/problem\/([a-zA-Z0-9]+))/i.exec(raw);
+  if (cf) {
+    const id = cf[1] || cf[3] || cf[5];
+    const index = (cf[2] || cf[4] || cf[6]).toUpperCase();
+    return `cf:${id}${index}`;
+  }
+
   if (raw) {
     try {
       const u = new URL(raw);
@@ -56,6 +63,7 @@ export function platformOf(url) {
   const u = (url || '').toLowerCase();
   if (u.includes('leetcode.com')) return { id: 'lc', label: 'LeetCode' };
   if (u.includes('geeksforgeeks.org')) return { id: 'gfg', label: 'GeeksforGeeks' };
+  if (u.includes('codeforces.com')) return { id: 'cf', label: 'Codeforces' };
   if (u.includes('takeuforward.org')) return { id: 'tuf', label: 'takeUforward' };
   if (u.includes('codingninjas.com') || u.includes('naukri.com')) return { id: 'cn', label: 'Coding Ninjas' };
   if (u.includes('interviewbit.com')) return { id: 'ib', label: 'InterviewBit' };

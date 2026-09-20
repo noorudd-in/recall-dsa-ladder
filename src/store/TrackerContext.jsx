@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { CATALOG, ROADMAPS, ROADMAP_BY_ID, ROADMAP_IDS } from '../data/roadmaps.js';
-import { addDays, diffDays, todayStr } from '../lib/dates.js';
+import { addDays, diffDays, plural, todayStr } from '../lib/dates.js';
 import { LADDER, applyReview, describeInterval, newRecord } from '../lib/srs.js';
 import { STORAGE_KEY, exportPayload, freshState, loadState, parseImport, saveState, sanitizeState } from '../lib/storage.js';
+import { buildCustomRoadmap, makeListId, makeProblemEntry } from '../lib/customLists.js';
 import { useToday } from '../hooks/useToday.js';
 
 const TrackerContext = createContext(null);
@@ -24,6 +25,63 @@ function reducer(state, action) {
     }
     case 'SET_ACTIVE':
       return { ...state, active: action.id };
+    case 'CREATE_LIST': {
+      const list = { id: makeListId(), name: action.name, blurb: action.blurb || '', createdAt: todayStr(), problems: [] };
+      return { ...state, customLists: [...state.customLists, list], active: list.id };
+    }
+    case 'RENAME_LIST':
+      return {
+        ...state,
+        customLists: state.customLists.map((l) => (l.id === action.id ? { ...l, name: action.name, blurb: action.blurb } : l)),
+      };
+    case 'DELETE_LIST': {
+      const customLists = state.customLists.filter((l) => l.id !== action.id);
+      const active = state.active === action.id ? ROADMAP_IDS[0] : state.active;
+      return { ...state, customLists, active };
+    }
+    case 'ADD_PROBLEMS': {
+      const customLists = state.customLists.map((l) => {
+        if (l.id !== action.listId) return l;
+        const seen = new Set(l.problems.map((p) => p.key));
+        const added = action.problems.filter((p) => !seen.has(p.key));
+        return added.length ? { ...l, problems: [...l.problems, ...added] } : l;
+      });
+      return { ...state, customLists };
+    }
+    case 'REMOVE_PROBLEM': {
+      const customLists = state.customLists.map((l) =>
+        l.id === action.listId ? { ...l, problems: l.problems.filter((p) => p.key !== action.key) } : l,
+      );
+      return { ...state, customLists };
+    }
+    case 'MOVE_PROBLEM': {
+      const customLists = state.customLists.map((l) => {
+        if (l.id !== action.listId || action.key === action.targetKey) return l;
+        const problems = [...l.problems];
+        const from = problems.findIndex((p) => p.key === action.key);
+        const to = problems.findIndex((p) => p.key === action.targetKey);
+        if (from < 0 || to < 0 || problems[from].category !== problems[to].category) return l;
+        const [moved] = problems.splice(from, 1);
+        problems.splice(problems.findIndex((p) => p.key === action.targetKey), 0, moved);
+        return { ...l, problems };
+      });
+      return { ...state, customLists };
+    }
+    case 'MOVE_CATEGORY': {
+      const customLists = state.customLists.map((l) => {
+        if (l.id !== action.listId || action.category === action.targetCategory) return l;
+        const categories = [...new Set(l.problems.map((p) => p.category))];
+        const from = categories.indexOf(action.category);
+        const to = categories.indexOf(action.targetCategory);
+        if (from < 0 || to < 0) return l;
+        categories.splice(from, 1);
+        categories.splice(categories.indexOf(action.targetCategory), 0, action.category);
+        const byCategory = new Map(categories.map((category) => [category, []]));
+        l.problems.forEach((p) => byCategory.get(p.category).push(p));
+        return { ...l, problems: categories.flatMap((category) => byCategory.get(category)) };
+      });
+      return { ...state, customLists };
+    }
     case 'REPLACE':
       return action.state;
     default:
@@ -104,7 +162,35 @@ export function TrackerProvider({ children }) {
       if (prev) setRecord(key, { ...prev, paused: !prev.paused });
     },
     toggleStar: (key) => dispatch({ type: 'TOGGLE_STAR', key }),
-    setActive: (id) => ROADMAP_BY_ID[id] && dispatch({ type: 'SET_ACTIVE', id }),
+    setActive(id) {
+      const known = ROADMAP_BY_ID[id] || stateRef.current.customLists.some((l) => l.id === id);
+      if (known) dispatch({ type: 'SET_ACTIVE', id });
+    },
+    createList(name, blurb) {
+      const trimmed = (name || '').trim();
+      if (!trimmed) return;
+      dispatch({ type: 'CREATE_LIST', name: trimmed, blurb: (blurb || '').trim() });
+    },
+    renameList(id, name, blurb) {
+      const trimmed = (name || '').trim();
+      if (!trimmed) return;
+      dispatch({ type: 'RENAME_LIST', id, name: trimmed, blurb: (blurb || '').trim() });
+    },
+    deleteList(id) {
+      const list = stateRef.current.customLists.find((l) => l.id === id);
+      dispatch({ type: 'DELETE_LIST', id });
+      if (list) notify(`Deleted “${list.name}”. Your progress on those problems is unaffected.`);
+    },
+    addProblems(listId, rows) {
+      const problems = rows.map(makeProblemEntry);
+      const before = new Set((stateRef.current.customLists.find((l) => l.id === listId)?.problems || []).map((p) => p.key));
+      const added = problems.filter((p) => !before.has(p.key)).length;
+      dispatch({ type: 'ADD_PROBLEMS', listId, problems });
+      notify(added ? `Added ${plural(added, 'problem')} to your list` : 'Those problems are already in your list');
+    },
+    removeProblem: (listId, key) => dispatch({ type: 'REMOVE_PROBLEM', listId, key }),
+    moveProblem: (listId, key, targetKey) => dispatch({ type: 'MOVE_PROBLEM', listId, key, targetKey }),
+    moveCategory: (listId, category, targetCategory) => dispatch({ type: 'MOVE_CATEGORY', listId, category, targetCategory }),
     exportData: () => exportPayload(stateRef.current),
     importData(text) {
       const result = parseImport(text, ROADMAP_IDS);
@@ -115,9 +201,32 @@ export function TrackerProvider({ children }) {
     reset: () => dispatch({ type: 'REPLACE', state: freshState(stateRef.current.active) }),
   }), [notify, setRecord]);
 
+  const allRoadmaps = useMemo(() => [...state.customLists.map(buildCustomRoadmap), ...ROADMAPS], [state.customLists]);
+
+  const catalog = useMemo(() => {
+    if (state.customLists.length === 0) return CATALOG;
+    const map = new Map(CATALOG);
+    for (const list of state.customLists) {
+      for (const p of list.problems) {
+        const existing = map.get(p.key);
+        if (existing) {
+          if (!existing.lists.includes(list.id)) map.set(p.key, { ...existing, lists: [...existing.lists, list.id] });
+        } else {
+          map.set(p.key, { ...p, lists: [list.id] });
+        }
+      }
+    }
+    return map;
+  }, [state.customLists]);
+
+  const listNameOf = useCallback(
+    (id) => (ROADMAP_BY_ID[id] ? ROADMAP_BY_ID[id].name : state.customLists.find((l) => l.id === id)?.name || 'a list'),
+    [state.customLists],
+  );
+
   const value = useMemo(
-    () => ({ state, today, actions, toast, dismissToast, storageOk, roadmaps: ROADMAPS, catalog: CATALOG }),
-    [state, today, actions, toast, dismissToast, storageOk],
+    () => ({ state, today, actions, toast, dismissToast, storageOk, roadmaps: allRoadmaps, catalog, listNameOf }),
+    [state, today, actions, toast, dismissToast, storageOk, allRoadmaps, catalog, listNameOf],
   );
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
 }

@@ -59,5 +59,3 @@ for (const roadmap of ROADMAPS) {
     }
   }
 }
-
-export const listNames = (ids) => ids.map((id) => ROADMAP_BY_ID[id].name);

@@ -1,8 +1,11 @@
-import { ChevronRight, Search, X } from 'lucide-react';
+import { ChevronRight, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import PageHeader from '../components/PageHeader.jsx';
 import ProblemRow from '../components/ProblemRow.jsx';
 import { EmptyState, ProgressBar } from '../components/ui.jsx';
+import CreateListDialog from '../components/CreateListDialog.jsx';
+import AddProblemsDialog from '../components/AddProblemsDialog.jsx';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import { roadmapProgress } from '../lib/stats.js';
 import { reviewStatus } from '../lib/srs.js';
 import { useTracker } from '../store/TrackerContext.jsx';
@@ -17,7 +20,7 @@ const STATUS = [
 const LEVELS = ['all', 'Easy', 'Medium', 'Hard'];
 
 export default function Problems() {
-  const { state, today, actions, roadmaps, catalog } = useTracker();
+  const { state, today, actions, roadmaps, catalog, listNameOf } = useTracker();
   const roadmap = roadmaps.find((r) => r.id === state.active) || roadmaps[0];
   const { problems, stars } = state;
 
@@ -26,6 +29,10 @@ export default function Problems() {
   const [level, setLevel] = useState('all');
   const [open, setOpen] = useState({});
   useEffect(() => setOpen({}), [roadmap.id]);
+
+  const [listDialog, setListDialog] = useState(null); // null | 'create' | { id, name, blurb }
+  const [addOpen, setAddOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const progress = useMemo(() => roadmapProgress(roadmap, problems), [roadmap, problems]);
   const filtering = query.trim() !== '' || status !== 'all' || level !== 'all';
@@ -58,6 +65,25 @@ export default function Problems() {
   const shown = groups.reduce((n, g) => n + g.rows.length, 0);
   const setAll = (value) => setOpen(Object.fromEntries(groups.map((g) => [g.name, value])));
   const clear = () => { setQuery(''); setStatus('all'); setLevel('all'); };
+  const reorderable = roadmap.isCustom && !filtering;
+  const startDrag = (event, payload) => {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('application/json', JSON.stringify(payload));
+  };
+  const readDrag = (event) => {
+    try { return JSON.parse(event.dataTransfer.getData('application/json')); } catch { return null; }
+  };
+  const allowDrop = (event) => event.preventDefault();
+  const dropProblem = (event, targetKey, category) => {
+    event.preventDefault();
+    const drag = readDrag(event);
+    if (drag?.type === 'problem' && drag.category === category) actions.moveProblem(roadmap.id, drag.key, targetKey);
+  };
+  const dropCategory = (event, targetCategory) => {
+    event.preventDefault();
+    const drag = readDrag(event);
+    if (drag?.type === 'category') actions.moveCategory(roadmap.id, drag.category, targetCategory);
+  };
 
   return (
     <>
@@ -73,6 +99,10 @@ export default function Problems() {
             </button>
           );
         })}
+        <button type="button" onClick={() => setListDialog('create')}>
+          <Plus size={15} aria-hidden="true" />
+          <span>New list</span>
+        </button>
       </div>
 
       <section className="summary" aria-label={`${roadmap.name} progress`}>
@@ -82,6 +112,17 @@ export default function Problems() {
             <strong>{roadmap.name}</strong>
             <span>{progress.solved} of {progress.total} solved. {roadmap.blurb}.</span>
           </div>
+          {roadmap.isCustom && (
+            <div className="summary-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>Add problems</button>
+              <button type="button" className="icon-btn" aria-label="Rename list" onClick={() => setListDialog({ id: roadmap.id, name: roadmap.name, blurb: roadmap.blurb })}>
+                <Pencil size={16} />
+              </button>
+              <button type="button" className="icon-btn" aria-label="Delete list" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
         </div>
         <ProgressBar value={progress.solved} max={progress.total} label={`${roadmap.name} progress`} />
         <div className="summary-mix">
@@ -119,7 +160,11 @@ export default function Problems() {
         )}
       </div>
 
-      {groups.length === 0 ? (
+      {groups.length === 0 && roadmap.isCustom && roadmap.problems.length === 0 ? (
+        <EmptyState title="This list is empty" action={<button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>Add problems</button>}>
+          Import problems from an existing sheet, search LeetCode or Codeforces, or paste a link.
+        </EmptyState>
+      ) : groups.length === 0 ? (
         <EmptyState title="No problems match" action={<button type="button" className="btn" onClick={clear}>Clear filters</button>}>
           Try a different search, or clear the filters to see the whole roadmap.
         </EmptyState>
@@ -129,7 +174,17 @@ export default function Problems() {
           let lastSub = null;
           return (
             <section className="group" key={g.name}>
-              <button type="button" className="group-head" aria-expanded={isOpen} disabled={filtering} onClick={() => setOpen((o) => ({ ...o, [g.name]: !isOpen }))}>
+              <button
+                type="button"
+                className="group-head"
+                aria-expanded={isOpen}
+                disabled={filtering}
+                draggable={reorderable}
+                onDragStart={reorderable ? (event) => startDrag(event, { type: 'category', category: g.name }) : undefined}
+                onDragOver={reorderable ? allowDrop : undefined}
+                onDrop={reorderable ? (event) => dropCategory(event, g.name) : undefined}
+                onClick={() => setOpen((o) => ({ ...o, [g.name]: !isOpen }))}
+              >
                 <ChevronRight size={18} className="chev" aria-hidden="true" />
                 <h3>{g.name}</h3>
                 <span className="group-count">{g.solved}/{g.total}</span>
@@ -143,7 +198,19 @@ export default function Problems() {
                     return (
                       <Fragment key={p.key}>
                         {showHead && <li className="subhead" role="presentation">{p.subtopic}</li>}
-                        <ProblemRow problem={p} rec={problems[p.key]} starred={Boolean(stars[p.key])} lists={catalog.get(p.key).lists} today={today} actions={actions} />
+                        <ProblemRow
+                          problem={p}
+                          rec={problems[p.key]}
+                          starred={Boolean(stars[p.key])}
+                          lists={catalog.get(p.key).lists}
+                          today={today}
+                          actions={actions}
+                          listNameOf={listNameOf}
+                          onRemove={roadmap.isCustom ? (key) => actions.removeProblem(roadmap.id, key) : undefined}
+                          onDragStart={reorderable ? (event) => startDrag(event, { type: 'problem', key: p.key, category: g.name }) : undefined}
+                          onDragOver={reorderable ? allowDrop : undefined}
+                          onDrop={reorderable ? (event) => dropProblem(event, p.key, g.name) : undefined}
+                        />
                       </Fragment>
                     );
                   })}
@@ -153,6 +220,30 @@ export default function Problems() {
           );
         })
       )}
+
+      <CreateListDialog
+        open={listDialog !== null}
+        initial={listDialog === 'create' ? null : listDialog}
+        onCancel={() => setListDialog(null)}
+        onSave={(name, blurb) => {
+          if (listDialog === 'create') actions.createList(name, blurb);
+          else actions.renameList(listDialog.id, name, blurb);
+          setListDialog(null);
+        }}
+      />
+
+      <AddProblemsDialog open={addOpen} list={roadmap.isCustom ? roadmap : null} roadmaps={roadmaps} onAdd={(rows) => actions.addProblems(roadmap.id, rows)} onClose={() => setAddOpen(false)} />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete “${roadmap.name}”?`}
+        confirmLabel="Delete list"
+        danger
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={() => { actions.deleteList(roadmap.id); setConfirmDelete(false); }}
+      >
+        This removes the list itself. Your solved/review progress on these problems is kept and still counts wherever else they appear.
+      </ConfirmDialog>
     </>
   );
 }

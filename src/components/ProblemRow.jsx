@@ -1,6 +1,5 @@
-import { Check, ExternalLink, Layers, MoreHorizontal, Star } from 'lucide-react';
+import { Check, ExternalLink, Layers, MoreHorizontal, Star, X } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
-import { listNames } from '../data/roadmaps.js';
 import { formatDay, plural } from '../lib/dates.js';
 import { LADDER, describeInterval, reviewStatus } from '../lib/srs.js';
 import { DifficultyTag, PlatformTag } from './ui.jsx';
@@ -58,10 +57,16 @@ function RowMenu({ rec, today, onDate, onPause, title }) {
   );
 }
 
-function ProblemRow({ problem, rec, starred, lists, today, actions }) {
+function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, onRemove, onDragStart, onDragOver, onDrop }) {
   const solved = Boolean(rec);
   return (
-    <li className={`prow ${solved ? 'is-solved' : ''}`}>
+    <li
+      className={`prow ${onRemove ? 'is-custom' : ''} ${solved ? 'is-solved' : ''}`}
+      draggable={Boolean(onDragStart)}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <button
         type="button"
         className="check"
@@ -78,7 +83,7 @@ function ProblemRow({ problem, rec, starred, lists, today, actions }) {
           <ExternalLink size={13} aria-hidden="true" />
         </a>
         {lists.length > 1 && (
-          <span className="prow-lists" title={`Also in: ${listNames(lists).join(', ')}`}>
+          <span className="prow-lists" title={`Also in: ${lists.map(listNameOf).join(', ')}`}>
             <Layers size={13} aria-hidden="true" />
             {lists.length}
           </span>
@@ -109,6 +114,12 @@ function ProblemRow({ problem, rec, starred, lists, today, actions }) {
         />
       ) : (
         <span className="menu-spacer" />
+      )}
+
+      {onRemove && (
+        <button type="button" className="icon-btn" aria-label={`Remove ${problem.title} from this list`} onClick={() => onRemove(problem.key)}>
+          <X size={16} />
+        </button>
       )}
     </li>
   );

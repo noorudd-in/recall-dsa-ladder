@@ -1,16 +1,19 @@
 import { addDays } from './dates.js';
 import { LADDER, LAST_STAGE } from './srs.js';
+import { sanitizeCustomLists } from './customLists.js';
 
 export const STORAGE_KEY = 'recall.v1';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const freshState = (active = 'neetcode150') => ({ v: 1, active, problems: {}, stars: {} });
+export const freshState = (active = 'neetcode150') => ({ v: 1, active, problems: {}, stars: {}, customLists: [] });
 
 /** Accepts anything (old data, hand-edited backups) and returns a valid state. */
 export function sanitizeState(raw, validRoadmapIds = []) {
   const out = freshState();
   if (!raw || typeof raw !== 'object') return out;
-  if (typeof raw.active === 'string' && (validRoadmapIds.length === 0 || validRoadmapIds.includes(raw.active))) {
+  out.customLists = sanitizeCustomLists(raw.customLists);
+  const validIds = [...validRoadmapIds, ...out.customLists.map((l) => l.id)];
+  if (typeof raw.active === 'string' && (validIds.length === 0 || validIds.includes(raw.active))) {
     out.active = raw.active;
   }
   for (const [key, r] of Object.entries(raw.problems || {})) {

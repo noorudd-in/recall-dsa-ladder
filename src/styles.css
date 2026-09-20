@@ -208,6 +208,17 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 .dialog h2 { font-family: var(--font-display); font-size: 21px; letter-spacing: -0.01em; }
 .dialog-body { margin-top: 10px; color: var(--ink-2); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.dialog-lg { width: min(640px, 96vw); height: min(680px, 88vh); display: flex; flex-direction: column; }
+.dialog-lg .seg { width: 100%; }
+.dialog-lg .dialog-body { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dialog-lg .search { height: 38px; flex: initial; }
+.field select, .field input[type='url'] { height: 38px; padding: 0 10px; background: var(--panel-2); border: 1px solid var(--line-strong); border-radius: 9px; }
+
+.tab-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.pick-list { flex: 1; min-height: 120px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 6px; }
+.pick-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 8px; border-radius: 8px; }
+.pick-row:hover { background: var(--panel); }
+.pick-row .check-line span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 320px; }
 
 /* ==========================================================================
    Sections
@@ -289,9 +300,11 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 .rm-tabs button:hover { color: var(--ink); }
 .rm-tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .rm-tabs button.on small { color: inherit; opacity: 0.85; }
+.rm-tabs button:last-child { border-style: dashed; color: var(--ink-3); }
 
 .summary { padding: 20px 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; display: flex; flex-direction: column; gap: 14px; }
 .summary-main { display: flex; align-items: center; gap: 18px; }
+.summary-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .summary-pct { font-family: var(--font-display); font-size: 54px; line-height: 0.9; font-weight: 750; letter-spacing: -0.04em; }
 .summary-pct span { font-size: 26px; margin-left: 2px; color: var(--ink-3); }
 .summary-text { display: flex; flex-direction: column; }
@@ -310,6 +323,8 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 .group-head { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 120px; align-items: center; gap: 12px; width: 100%; padding: 15px 18px; text-align: left; border-radius: 16px; }
 .group-head:hover:not(:disabled) { background: var(--panel-2); }
 .group-head:disabled { cursor: default; }
+.group-head[draggable='true'], .prow[draggable='true'] { cursor: grab; }
+.group-head[draggable='true']:active, .prow[draggable='true']:active { cursor: grabbing; }
 .group-head[aria-expanded='true'] { border-radius: 16px 16px 0 0; }
 .rows > :last-child { border-radius: 0 0 15px 15px; }
 .group-head h3 { font-size: 16px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -322,6 +337,7 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 .subhead { padding: 10px 18px 6px 58px; font-size: 13px; font-weight: 650; color: var(--ink-3); background: var(--panel-2); border-top: 1px solid var(--line); }
 .subhead:first-child { border-top: 0; }
 .prow { display: grid; grid-template-columns: 28px minmax(0, 1fr) 48px 76px 132px 32px 32px; align-items: center; gap: 10px; padding: 9px 12px 9px 18px; border-top: 1px solid var(--line); transition: background 0.12s; }
+.prow.is-custom { grid-template-columns: 28px minmax(0, 1fr) 48px 76px 132px 32px 32px 32px; }
 .prow:first-child, .subhead + .prow { border-top: 0; }
 .prow:hover { background: var(--panel-2); }
 .prow .plat, .prow .diff { justify-self: start; }

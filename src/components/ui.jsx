@@ -9,7 +9,7 @@ export function ProgressBar({ value, max, tone = 'accent', label }) {
 
 export const DifficultyTag = ({ level }) => <span className={`diff diff-${level.toLowerCase()}`}>{level}</span>;
 
-const SHORT = { lc: 'LC', gfg: 'GFG', tuf: 'TUF', cn: 'CN', ib: 'IB', yt: 'Video', link: 'Link' };
+const SHORT = { lc: 'LC', gfg: 'GFG', tuf: 'TUF', cn: 'CN', ib: 'IB', cf: 'CF', yt: 'Video', link: 'Link' };
 export const PlatformTag = ({ platform }) => (
   <span className="plat" title={platform.label}>{SHORT[platform.id] || 'Link'}</span>
 );
