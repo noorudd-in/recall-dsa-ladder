@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-export default function CreateListDialog({ open, initial, onSave, onCancel }) {
+export default function CreateListDialog({ open, initial, onSave, onCancel, onImportList }) {
   const [name, setName] = useState('');
   const [blurb, setBlurb] = useState('');
+  const fileInput = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -25,6 +26,14 @@ export default function CreateListDialog({ open, initial, onSave, onCancel }) {
     onSave(name.trim(), blurb.trim());
   };
 
+  const importFile = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const text = await file.text();
+    if (onImportList) onImportList(text);
+  };
+
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
       <form className="dialog" role="dialog" aria-modal="true" aria-labelledby="list-dlg-title" onSubmit={submit}>
@@ -41,8 +50,12 @@ export default function CreateListDialog({ open, initial, onSave, onCancel }) {
         </div>
         <div className="dialog-actions">
           <button type="button" className="btn" onClick={onCancel}>Cancel</button>
+          {!initial && onImportList && (
+            <button type="button" className="btn" onClick={() => fileInput.current && fileInput.current.click()}>Import list</button>
+          )}
           <button type="submit" className="btn btn-primary" disabled={!name.trim()}>{initial ? 'Save' : 'Create list'}</button>
         </div>
+        {!initial && onImportList && <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={importFile} />}
       </form>
     </div>
   );

@@ -33,6 +33,7 @@ export default function Problems() {
   const [listDialog, setListDialog] = useState(null); // null | 'create' | { id, name, blurb }
   const [addOpen, setAddOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState(null); // { key, title }
 
   const progress = useMemo(() => roadmapProgress(roadmap, problems), [roadmap, problems]);
   const filtering = query.trim() !== '' || status !== 'all' || level !== 'all';
@@ -65,6 +66,24 @@ export default function Problems() {
   const shown = groups.reduce((n, g) => n + g.rows.length, 0);
   const setAll = (value) => setOpen(Object.fromEntries(groups.map((g) => [g.name, value])));
   const clear = () => { setQuery(''); setStatus('all'); setLevel('all'); };
+  const confirmRemoveProblem = (key) => {
+    const problem = roadmap.problems.find((p) => p.key === key);
+    if (!problem) return;
+    setPendingRemove({ key, title: problem.title });
+  };
+  const exportCurrentList = (includeNotes) => {
+    const payload = actions.exportCustomList(roadmap.id, includeNotes);
+    if (!payload) return;
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${roadmap.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'custom-list'}-${includeNotes ? 'with-notes' : 'without-notes'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   const reorderable = roadmap.isCustom && !filtering;
   const startDrag = (event, payload) => {
     event.dataTransfer.effectAllowed = 'move';
@@ -115,6 +134,8 @@ export default function Problems() {
           {roadmap.isCustom && (
             <div className="summary-actions">
               <button type="button" className="btn btn-primary" onClick={() => setAddOpen(true)}>Add problems</button>
+              <button type="button" className="btn" onClick={() => exportCurrentList(false)}>Export without notes</button>
+              <button type="button" className="btn" onClick={() => exportCurrentList(true)}>Export with notes</button>
               <button type="button" className="icon-btn" aria-label="Rename list" onClick={() => setListDialog({ id: roadmap.id, name: roadmap.name, blurb: roadmap.blurb })}>
                 <Pencil size={16} />
               </button>
@@ -206,7 +227,8 @@ export default function Problems() {
                           today={today}
                           actions={actions}
                           listNameOf={listNameOf}
-                          onRemove={roadmap.isCustom ? (key) => actions.removeProblem(roadmap.id, key) : undefined}
+                          onRemove={roadmap.isCustom ? confirmRemoveProblem : undefined}
+                          onNoteChange={roadmap.isCustom ? (key, note) => actions.updateProblemNote(roadmap.id, key, note) : undefined}
                           onDragStart={reorderable ? (event) => startDrag(event, { type: 'problem', key: p.key, category: g.name }) : undefined}
                           onDragOver={reorderable ? allowDrop : undefined}
                           onDrop={reorderable ? (event) => dropProblem(event, p.key, g.name) : undefined}
@@ -230,9 +252,31 @@ export default function Problems() {
           else actions.renameList(listDialog.id, name, blurb);
           setListDialog(null);
         }}
+        onImportList={(text) => {
+          const result = actions.importCustomList(text);
+          if (!result.ok) {
+            window.alert(result.error || 'Import failed.');
+            return;
+          }
+          setListDialog(null);
+        }}
       />
 
       <AddProblemsDialog open={addOpen} list={roadmap.isCustom ? roadmap : null} roadmaps={roadmaps} onAdd={(rows) => actions.addProblems(roadmap.id, rows)} onClose={() => setAddOpen(false)} />
+
+      <ConfirmDialog
+        open={Boolean(pendingRemove)}
+        title={`Remove “${pendingRemove?.title}” from “${roadmap.name}”?`}
+        confirmLabel="Remove problem"
+        danger
+        onCancel={() => setPendingRemove(null)}
+        onConfirm={() => {
+          if (pendingRemove) actions.removeProblem(roadmap.id, pendingRemove.key);
+          setPendingRemove(null);
+        }}
+      >
+        This removes it only from this custom list. Your solved/review progress stays intact wherever else it appears.
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={confirmDelete}

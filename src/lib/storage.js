@@ -66,6 +66,23 @@ export function parseImport(text, validRoadmapIds) {
   } catch {
     return { ok: false, error: 'That file is not valid JSON.' };
   }
+
+  if (json && json.app === 'recall-custom-list') {
+    const list = json.list && typeof json.list === 'object' ? json.list : null;
+    const customLists = list ? sanitizeCustomLists([list]) : [];
+    if (!customLists.length) {
+      return { ok: false, error: 'That file does not contain a valid custom list snapshot.' };
+    }
+    const state = {
+      v: 1,
+      active: customLists[0].id,
+      problems: typeof json.problems === 'object' ? json.problems : {},
+      stars: typeof json.stars === 'object' ? json.stars : {},
+      customLists,
+    };
+    return { ok: true, state: sanitizeState(state, validRoadmapIds) };
+  }
+
   const data = json && json.data && json.app === 'recall' ? json.data : json;
   if (!data || typeof data !== 'object' || typeof data.problems !== 'object') {
     return { ok: false, error: 'That file does not look like a Recall backup.' };

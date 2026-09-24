@@ -1,4 +1,4 @@
-import { Check, ExternalLink, Layers, MoreHorizontal, Star, X } from 'lucide-react';
+import { Check, ExternalLink, FileText, Layers, MoreHorizontal, Star, X } from 'lucide-react';
 import { memo, useEffect, useRef, useState } from 'react';
 import { formatDay, plural } from '../lib/dates.js';
 import { LADDER, describeInterval, reviewStatus } from '../lib/srs.js';
@@ -57,8 +57,16 @@ function RowMenu({ rec, today, onDate, onPause, title }) {
   );
 }
 
-function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, onRemove, onDragStart, onDragOver, onDrop }) {
+function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, onRemove, onNoteChange, onDragStart, onDragOver, onDrop }) {
   const solved = Boolean(rec);
+  const [noteOpen, setNoteOpen] = useState(Boolean(problem.note));
+  const [noteText, setNoteText] = useState(problem.note || '');
+
+  useEffect(() => {
+    setNoteText(problem.note || '');
+    setNoteOpen(Boolean(problem.note));
+  }, [problem.note]);
+
   return (
     <li
       className={`prow ${onRemove ? 'is-custom' : ''} ${solved ? 'is-solved' : ''}`}
@@ -116,10 +124,33 @@ function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, 
         <span className="menu-spacer" />
       )}
 
+      {onNoteChange && (
+        <button
+          type="button"
+          className={`icon-btn ${noteOpen ? 'on' : ''}`}
+          aria-label={noteOpen ? `Hide notes for ${problem.title}` : `Add notes for ${problem.title}`}
+          onClick={() => setNoteOpen((v) => !v)}
+        >
+          <FileText size={16} />
+        </button>
+      )}
+
       {onRemove && (
         <button type="button" className="icon-btn" aria-label={`Remove ${problem.title} from this list`} onClick={() => onRemove(problem.key)}>
           <X size={16} />
         </button>
+      )}
+
+      {noteOpen && onNoteChange && (
+        <div className="prow-note">
+          <textarea
+            value={noteText}
+            rows={3}
+            placeholder="Add a quick note for this problem…"
+            onChange={(e) => setNoteText(e.target.value)}
+            onBlur={() => onNoteChange(problem.key, noteText)}
+          />
+        </div>
       )}
     </li>
   );

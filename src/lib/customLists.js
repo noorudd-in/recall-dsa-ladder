@@ -12,7 +12,7 @@ export function makeListId() {
 }
 
 /** Builds one problem entry for a custom list from raw user/API input. */
-export function makeProblemEntry({ title, url, difficulty, category, subtopic }) {
+export function makeProblemEntry({ title, url, difficulty, category, subtopic, note }) {
   const cleaned = cleanUrl((url || '').trim()) || null;
   const key = problemKey({ url: cleaned, title });
   return {
@@ -22,6 +22,7 @@ export function makeProblemEntry({ title, url, difficulty, category, subtopic })
     difficulty: DIFFICULTIES.has(difficulty) ? difficulty : 'Medium',
     category: (category || 'Other').trim() || 'Other',
     subtopic: subtopic ? String(subtopic).trim() || null : null,
+    note: typeof note === 'string' ? note : '',
     platform: platformOf(cleaned),
   };
 }
@@ -58,7 +59,12 @@ export function sanitizeCustomLists(raw) {
       name,
       blurb: typeof l.blurb === 'string' ? l.blurb.trim() : '',
       createdAt: typeof l.createdAt === 'string' ? l.createdAt : '',
-      problems,
+      problems: problems.map((p) => ({
+        ...p,
+        note: typeof l.problems?.find((row) => row && row.title === p.title && row.url === p.url)?.note === 'string'
+          ? l.problems.find((row) => row && row.title === p.title && row.url === p.url).note
+          : '',
+      })),
     });
   }
   return out;

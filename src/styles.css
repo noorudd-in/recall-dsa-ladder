@@ -337,12 +337,15 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 .subhead { padding: 10px 18px 6px 58px; font-size: 13px; font-weight: 650; color: var(--ink-3); background: var(--panel-2); border-top: 1px solid var(--line); }
 .subhead:first-child { border-top: 0; }
 .prow { display: grid; grid-template-columns: 28px minmax(0, 1fr) 48px 76px 132px 32px 32px; align-items: center; gap: 10px; padding: 9px 12px 9px 18px; border-top: 1px solid var(--line); transition: background 0.12s; }
-.prow.is-custom { grid-template-columns: 28px minmax(0, 1fr) 48px 76px 132px 32px 32px 32px; }
+.prow.is-custom { grid-template-columns: 28px minmax(0, 1fr) 48px 76px 132px 32px 32px 32px 32px; }
 .prow:first-child, .subhead + .prow { border-top: 0; }
 .prow:hover { background: var(--panel-2); }
 .prow .plat, .prow .diff { justify-self: start; }
 .prow-status { display: flex; justify-content: flex-end; }
 .prow-status:empty { display: none; }
+.prow-note { grid-column: 2 / -1; margin: 0 0 4px 0; }
+.prow-note textarea { width: 100%; min-height: 72px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-2); color: var(--ink); padding: 10px 12px; font: inherit; }
+.prow-note textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .menu-spacer { width: 32px; }
 
 .check { position: relative; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line-strong); display: grid; place-items: center; color: transparent; transition: background 0.15s, border-color 0.15s, transform 0.15s; }

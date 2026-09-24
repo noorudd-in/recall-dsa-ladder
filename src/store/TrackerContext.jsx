@@ -54,6 +54,23 @@ function reducer(state, action) {
       );
       return { ...state, customLists };
     }
+    case 'IMPORT_CUSTOM_LIST': {
+      const importedList = { ...action.list, id: action.list.id || makeListId() };
+      const existingIds = new Set(state.customLists.map((list) => list.id));
+      if (existingIds.has(importedList.id)) importedList.id = makeListId();
+      const problems = { ...state.problems, ...action.problems };
+      const stars = { ...state.stars, ...action.stars };
+      return { ...state, active: importedList.id, problems, stars, customLists: [...state.customLists, importedList] };
+    }
+    case 'UPDATE_PROBLEM_NOTE': {
+      const customLists = state.customLists.map((l) =>
+        l.id === action.listId ? {
+          ...l,
+          problems: l.problems.map((p) => (p.key === action.key ? { ...p, note: action.note } : p)),
+        } : l,
+      );
+      return { ...state, customLists };
+    }
     case 'MOVE_PROBLEM': {
       const customLists = state.customLists.map((l) => {
         if (l.id !== action.listId || action.key === action.targetKey) return l;
@@ -188,10 +205,49 @@ export function TrackerProvider({ children }) {
       dispatch({ type: 'ADD_PROBLEMS', listId, problems });
       notify(added ? `Added ${plural(added, 'problem')} to your list` : 'Those problems are already in your list');
     },
+    importCustomList(text) {
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        return { ok: false, error: 'That file is not valid JSON.' };
+      }
+      if (!json || json.app !== 'recall-custom-list' || !json.list || typeof json.list !== 'object') {
+        return { ok: false, error: 'That file is not a custom list export.' };
+      }
+      const list = Array.isArray(json.list.problems) ? { ...json.list, problems: json.list.problems.map((p) => ({ ...p, note: typeof p.note === 'string' ? p.note : '' })) } : { ...json.list, problems: [] };
+      dispatch({ type: 'IMPORT_CUSTOM_LIST', list, problems: json.problems || {}, stars: json.stars || {} });
+      notify(`Imported “${list.name || 'custom list'}”.`);
+      return { ok: true, count: list.problems.length };
+    },
     removeProblem: (listId, key) => dispatch({ type: 'REMOVE_PROBLEM', listId, key }),
+    updateProblemNote: (listId, key, note) => dispatch({ type: 'UPDATE_PROBLEM_NOTE', listId, key, note: String(note || '').trim() }),
     moveProblem: (listId, key, targetKey) => dispatch({ type: 'MOVE_PROBLEM', listId, key, targetKey }),
     moveCategory: (listId, category, targetCategory) => dispatch({ type: 'MOVE_CATEGORY', listId, category, targetCategory }),
     exportData: () => exportPayload(stateRef.current),
+    exportCustomList(listId, includeNotes = false) {
+      const list = stateRef.current.customLists.find((l) => l.id === listId);
+      if (!list) return null;
+      const solvedMap = Object.fromEntries(
+        Object.entries(stateRef.current.problems).filter(([key]) => list.problems.some((p) => p.key === key)),
+      );
+      const stars = Object.fromEntries(
+        Object.entries(stateRef.current.stars).filter(([key]) => list.problems.some((p) => p.key === key)),
+      );
+      const problems = list.problems.map((p) => ({
+        ...p,
+        note: includeNotes ? p.note || '' : '',
+        done: Boolean(stateRef.current.problems[p.key]),
+      }));
+      return JSON.stringify({
+        app: 'recall-custom-list',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        list: { ...list, problems },
+        problems: solvedMap,
+        stars,
+      }, null, 2);
+    },
     importData(text) {
       const result = parseImport(text, ROADMAP_IDS);
       if (!result.ok) return result;
