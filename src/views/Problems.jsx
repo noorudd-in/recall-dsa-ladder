@@ -20,8 +20,8 @@ const STATUS = [
 const LEVELS = ['all', 'Easy', 'Medium', 'Hard'];
 
 export default function Problems() {
-  const { state, today, actions, roadmaps, catalog, listNameOf } = useTracker();
-  const roadmap = roadmaps.find((r) => r.id === state.active) || roadmaps[0];
+  const { state, today, actions, roadmaps, visibleRoadmaps, catalog, listNameOf } = useTracker();
+  const roadmap = visibleRoadmaps.find((r) => r.id === state.active) || visibleRoadmaps[0] || roadmaps.find((r) => r.id === state.active) || roadmaps[0];
   const { problems, stars } = state;
 
   const [query, setQuery] = useState('');
@@ -34,6 +34,7 @@ export default function Problems() {
   const [addOpen, setAddOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null); // { key, title }
+  const [sheetManagerOpen, setSheetManagerOpen] = useState(false);
 
   const progress = useMemo(() => roadmapProgress(roadmap, problems), [roadmap, problems]);
   const filtering = query.trim() !== '' || status !== 'all' || level !== 'all';
@@ -108,21 +109,52 @@ export default function Problems() {
     <>
       <PageHeader title="Problems" subtitle="Tick a problem when you solve it. It joins your review queue automatically." />
 
-      <div className="rm-tabs" role="group" aria-label="Roadmaps">
-        {roadmaps.map((r) => {
-          const p = roadmapProgress(r, problems);
-          return (
-            <button key={r.id} type="button" aria-pressed={r.id === roadmap.id} className={r.id === roadmap.id ? 'on' : ''} onClick={() => actions.setActive(r.id)}>
-              <span>{r.name}</span>
-              <small>{p.pct}%</small>
-            </button>
-          );
-        })}
-        <button type="button" onClick={() => setListDialog('create')}>
-          <Plus size={15} aria-hidden="true" />
-          <span>New list</span>
+      <div className="rm-tabs-wrap">
+        <div className="rm-tabs" role="group" aria-label="Roadmaps">
+          {visibleRoadmaps.map((r) => {
+            const p = roadmapProgress(r, problems);
+            return (
+              <button key={r.id} type="button" aria-pressed={r.id === roadmap.id} className={r.id === roadmap.id ? 'on' : ''} onClick={() => actions.setActive(r.id)}>
+                <span>{r.name}</span>
+                <small>{p.pct}%</small>
+              </button>
+            );
+          })}
+          <button type="button" onClick={() => setListDialog('create')}>
+            <Plus size={15} aria-hidden="true" />
+            <span>New list</span>
+          </button>
+        </div>
+        <button type="button" className="btn btn-quiet rm-tabs-manage" onClick={() => setSheetManagerOpen(true)}>
+          Manage sheets
         </button>
       </div>
+
+      {sheetManagerOpen && (
+        <div className="scrim" role="dialog" aria-modal="true" aria-label="Manage visible sheets">
+          <div className="dialog dialog-md">
+            <h2>Visible sheets</h2>
+            <div className="dialog-body">
+              <p className="block-sub">Keep only the sheets you want on the top tabs.</p>
+              <div className="sheet-list">
+                {roadmaps.map((r) => {
+                  const visible = !(state.hiddenRoadmaps || []).includes(r.id);
+                  return (
+                    <label key={r.id} className={`sheet-row ${visible ? 'is-visible' : ''}`}>
+                      <input type="checkbox" checked={visible} onChange={() => actions.toggleRoadmapVisibility(r.id)} />
+                      <span>{r.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="dialog-actions">
+              <button type="button" className="btn btn-quiet" onClick={() => actions.showAllRoadmaps()}>Show all</button>
+              <button type="button" className="btn btn-primary" onClick={() => setSheetManagerOpen(false)}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="summary" aria-label={`${roadmap.name} progress`}>
         <div className="summary-main">

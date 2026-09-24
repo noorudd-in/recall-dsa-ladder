@@ -294,13 +294,20 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 /* ==========================================================================
    Problems
    ========================================================================== */
-.rm-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 0 -2px 18px; scrollbar-width: thin; }
+.rm-tabs { flex: 1 1 auto; min-width: 0; display: flex; gap: 8px; overflow-x: auto; padding: 0 2px 6px; margin: 0 0 18px; scrollbar-width: thin; }
+.rm-tabs-wrap { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.rm-tabs-manage { flex-shrink: 0; }
 .rm-tabs button { display: inline-flex; align-items: baseline; gap: 8px; padding: 9px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); font-weight: 600; font-size: 14px; white-space: nowrap; color: var(--ink-2); transition: background 0.15s, color 0.15s, border-color 0.15s; }
 .rm-tabs button small { font-size: 12px; font-weight: 600; color: var(--ink-3); }
 .rm-tabs button:hover { color: var(--ink); }
 .rm-tabs button.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .rm-tabs button.on small { color: inherit; opacity: 0.85; }
 .rm-tabs button:last-child { border-style: dashed; color: var(--ink-3); }
+.sheet-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.sheet-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--ink); }
+.sheet-row input { accent-color: var(--accent); }
+.sheet-row.is-visible { border-color: var(--accent-soft); background: var(--accent-soft); }
+.dialog-md { width: min(420px, 92vw); }
 
 .summary { padding: 20px 22px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; display: flex; flex-direction: column; gap: 14px; }
 .summary-main { display: flex; align-items: center; gap: 18px; }
@@ -464,6 +471,9 @@ rect.heat-today { stroke: var(--ink); stroke-width: 1.5; }
 }
 
 @media (max-width: 720px) {
+   .rm-tabs-wrap { flex-direction: column; gap: 0; }
+   .rm-tabs { width: 100%; }
+   .rm-tabs-manage { align-self: flex-start; margin: -8px 0 18px; }
   .page-head { flex-direction: column; gap: 14px; }
   .prow { grid-template-columns: 28px minmax(0, 1fr) 76px 32px 32px; padding: 10px 8px 10px 12px; }
   .prow .plat { display: none; }

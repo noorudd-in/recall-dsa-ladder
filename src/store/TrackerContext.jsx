@@ -25,6 +25,19 @@ function reducer(state, action) {
     }
     case 'SET_ACTIVE':
       return { ...state, active: action.id };
+    case 'TOGGLE_ROADMAP_VISIBILITY': {
+      const ids = [...ROADMAP_IDS, ...state.customLists.map((l) => l.id)];
+      if (!ids.includes(action.id)) return state;
+      const hidden = new Set(state.hiddenRoadmaps || []);
+      if (hidden.has(action.id)) hidden.delete(action.id);
+      else hidden.add(action.id);
+      const active = state.active === action.id && hidden.has(action.id)
+        ? ids.find((id) => !hidden.has(id)) || state.active
+        : state.active;
+      return { ...state, hiddenRoadmaps: [...hidden], active };
+    }
+    case 'SHOW_ALL_ROADMAPS':
+      return { ...state, hiddenRoadmaps: [] };
     case 'CREATE_LIST': {
       const list = { id: makeListId(), name: action.name, blurb: action.blurb || '', createdAt: todayStr(), problems: [] };
       return { ...state, customLists: [...state.customLists, list], active: list.id };
@@ -181,7 +194,15 @@ export function TrackerProvider({ children }) {
     toggleStar: (key) => dispatch({ type: 'TOGGLE_STAR', key }),
     setActive(id) {
       const known = ROADMAP_BY_ID[id] || stateRef.current.customLists.some((l) => l.id === id);
-      if (known) dispatch({ type: 'SET_ACTIVE', id });
+      const hidden = stateRef.current.hiddenRoadmaps || [];
+      if (known && (!hidden.includes(id) || RoadmapCountVisible(stateRef.current) === 0)) dispatch({ type: 'SET_ACTIVE', id });
+    },
+    toggleRoadmapVisibility(id) {
+      const known = ROADMAP_BY_ID[id] || stateRef.current.customLists.some((l) => l.id === id);
+      if (known) dispatch({ type: 'TOGGLE_ROADMAP_VISIBILITY', id });
+    },
+    showAllRoadmaps() {
+      dispatch({ type: 'SHOW_ALL_ROADMAPS' });
     },
     createList(name, blurb) {
       const trimmed = (name || '').trim();
@@ -258,6 +279,10 @@ export function TrackerProvider({ children }) {
   }), [notify, setRecord]);
 
   const allRoadmaps = useMemo(() => [...state.customLists.map(buildCustomRoadmap), ...ROADMAPS], [state.customLists]);
+  const visibleRoadmaps = useMemo(
+    () => allRoadmaps.filter((roadmap) => !(state.hiddenRoadmaps || []).includes(roadmap.id)),
+    [allRoadmaps, state.hiddenRoadmaps],
+  );
 
   const catalog = useMemo(() => {
     if (state.customLists.length === 0) return CATALOG;
@@ -281,8 +306,13 @@ export function TrackerProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ state, today, actions, toast, dismissToast, storageOk, roadmaps: allRoadmaps, catalog, listNameOf }),
-    [state, today, actions, toast, dismissToast, storageOk, allRoadmaps, catalog, listNameOf],
+    () => ({ state, today, actions, toast, dismissToast, storageOk, roadmaps: allRoadmaps, visibleRoadmaps, catalog, listNameOf }),
+    [state, today, actions, toast, dismissToast, storageOk, allRoadmaps, visibleRoadmaps, catalog, listNameOf],
   );
   return <TrackerContext.Provider value={value}>{children}</TrackerContext.Provider>;
+}
+
+function RoadmapCountVisible(state) {
+  const ids = [...ROADMAP_IDS, ...state.customLists.map((list) => list.id)];
+  return ids.filter((id) => !(state.hiddenRoadmaps || []).includes(id)).length;
 }

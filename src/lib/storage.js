@@ -5,7 +5,7 @@ import { sanitizeCustomLists } from './customLists.js';
 export const STORAGE_KEY = 'recall.v1';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const freshState = (active = 'neetcode150') => ({ v: 1, active, problems: {}, stars: {}, customLists: [] });
+export const freshState = (active = 'neetcode150') => ({ v: 1, active, problems: {}, stars: {}, customLists: [], hiddenRoadmaps: [] });
 
 /** Accepts anything (old data, hand-edited backups) and returns a valid state. */
 export function sanitizeState(raw, validRoadmapIds = []) {
@@ -13,6 +13,9 @@ export function sanitizeState(raw, validRoadmapIds = []) {
   if (!raw || typeof raw !== 'object') return out;
   out.customLists = sanitizeCustomLists(raw.customLists);
   const validIds = [...validRoadmapIds, ...out.customLists.map((l) => l.id)];
+  out.hiddenRoadmaps = Array.isArray(raw.hiddenRoadmaps)
+    ? raw.hiddenRoadmaps.filter((id) => typeof id === 'string' && validIds.includes(id))
+    : [];
   if (typeof raw.active === 'string' && (validIds.length === 0 || validIds.includes(raw.active))) {
     out.active = raw.active;
   }

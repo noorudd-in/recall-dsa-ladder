@@ -11,7 +11,7 @@ import { useTracker } from '../store/TrackerContext.jsx';
 const DIFFS = [['Easy', 'easy'], ['Medium', 'medium'], ['Hard', 'hard']];
 
 export default function Today({ go }) {
-  const { state, today, catalog, roadmaps, actions } = useTracker();
+  const { state, today, catalog, visibleRoadmaps, actions } = useTracker();
   const { problems } = state;
 
   const queue = useMemo(() => reviewQueue(problems, catalog, today), [problems, catalog, today]);
@@ -90,7 +90,7 @@ export default function Today({ go }) {
           <h2 id="rm-title">Roadmaps</h2>
           <p className="block-sub">Progress is shared. A problem you solve once counts in every list that includes it.</p>
           <ul className="rm-list">
-            {roadmaps.map((r) => {
+            {visibleRoadmaps.map((r) => {
               const p = roadmapProgress(r, problems);
               const current = r.id === state.active;
               return (
