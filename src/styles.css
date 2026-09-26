@@ -146,6 +146,8 @@ code { font-size: 0.9em; background: var(--panel-2); border: 1px solid var(--lin
 
 .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; color: var(--ink-3); transition: background 0.15s, color 0.15s; }
 .icon-btn:hover { background: var(--panel-2); color: var(--ink); }
+.icon-btn.note-btn.has-note { color: var(--accent-strong); background: var(--accent-soft); }
+.icon-btn.note-btn.has-note:hover { background: var(--accent); color: var(--on-accent); }
 .star.on { color: var(--medium); }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 11px; border: 1px solid var(--line-strong); background: var(--panel); font-weight: 600; font-size: 14.5px; transition: background 0.15s, transform 0.1s; }

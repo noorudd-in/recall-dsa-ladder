@@ -59,6 +59,7 @@ function RowMenu({ rec, today, onDate, onPause, title }) {
 
 function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, onRemove, onNoteChange, onDragStart, onDragOver, onDrop }) {
   const solved = Boolean(rec);
+  const hasNote = Boolean(problem.note && problem.note.trim());
   const [noteOpen, setNoteOpen] = useState(Boolean(problem.note));
   const [noteText, setNoteText] = useState(problem.note || '');
 
@@ -127,8 +128,8 @@ function ProblemRow({ problem, rec, starred, lists, today, actions, listNameOf, 
       {onNoteChange && (
         <button
           type="button"
-          className={`icon-btn ${noteOpen ? 'on' : ''}`}
-          aria-label={noteOpen ? `Hide notes for ${problem.title}` : `Add notes for ${problem.title}`}
+          className={`icon-btn note-btn ${hasNote ? 'has-note' : ''} ${noteOpen ? 'on' : ''}`}
+          aria-label={noteOpen ? `Hide notes for ${problem.title}` : hasNote ? `Show note for ${problem.title}` : `Add notes for ${problem.title}`}
           onClick={() => setNoteOpen((v) => !v)}
         >
           <FileText size={16} />
