@@ -97,12 +97,39 @@ export default function Problems() {
   const dropProblem = (event, targetKey, category) => {
     event.preventDefault();
     const drag = readDrag(event);
-    if (drag?.type === 'problem' && drag.category === category) actions.moveProblem(roadmap.id, drag.key, targetKey);
+    if (drag?.type === 'problem' && drag.category === category) actions.moveProblem(roadmap.id, drag.key, targetKey, category, drag.subtopic || null);
+  };
+  const dropProblemIntoSubheading = (event, targetKey, category, subtopic) => {
+    event.preventDefault();
+    const drag = readDrag(event);
+    if (drag?.type === 'problem' && drag.category === category) actions.moveProblem(roadmap.id, drag.key, targetKey, category, subtopic);
   };
   const dropCategory = (event, targetCategory) => {
     event.preventDefault();
     const drag = readDrag(event);
     if (drag?.type === 'category') actions.moveCategory(roadmap.id, drag.category, targetCategory);
+  };
+  const promptForSubheading = (category) => {
+    const name = window.prompt(`New subheading inside ${category}`);
+    if (name) actions.createSubheading(roadmap.id, category, name);
+  };
+  const renameSubheading = (subheading) => {
+    const name = window.prompt('Rename subheading', subheading.name);
+    if (name && name.trim() !== subheading.name) actions.renameSubheading(roadmap.id, subheading.id, subheading.category, subheading.name, name);
+  };
+  const removeSubheading = (subheading) => {
+    if (window.confirm(`Delete “${subheading.name}”? Problems inside it will move to Uncategorized.`)) {
+      actions.deleteSubheading(roadmap.id, subheading.id, subheading.category, subheading.name);
+    }
+  };
+  const dropSubheading = (event, targetId, category) => {
+    event.preventDefault();
+    const drag = readDrag(event);
+    if (drag?.type === 'subheading' && drag.category === category) actions.moveSubheading(roadmap.id, drag.id, targetId);
+    if (drag?.type === 'problem' && drag.category === category) {
+      const subtopic = roadmap.subheadings.find((subheading) => subheading.id === targetId)?.name || null;
+      actions.moveProblem(roadmap.id, drag.key, null, category, subtopic);
+    }
   };
 
   return (
@@ -225,48 +252,77 @@ export default function Problems() {
         groups.map((g, gi) => {
           const isOpen = filtering ? true : open[g.name] !== undefined ? open[g.name] : gi === 0;
           let lastSub = null;
+          const subheadings = roadmap.isCustom
+            ? (roadmap.subheadings || []).filter((subheading) => subheading.category === g.name)
+            : [];
+          const subgroups = roadmap.isCustom
+            ? [
+              ...subheadings.map((subheading) => ({ ...subheading, rows: g.rows.filter((problem) => problem.subtopic === subheading.name) })),
+              { id: `uncategorized:${g.name}`, name: 'Uncategorized', category: g.name, rows: g.rows.filter((problem) => !problem.subtopic || !subheadings.some((subheading) => subheading.name === problem.subtopic)) },
+            ].filter((subgroup) => subgroup.rows.length > 0 || subgroup.name !== 'Uncategorized')
+            : [];
+          const renderProblem = (problem, subtopic) => (
+            <ProblemRow
+              key={problem.key}
+              problem={problem}
+              rec={problems[problem.key]}
+              starred={Boolean(stars[problem.key])}
+              lists={catalog.get(problem.key).lists}
+              today={today}
+              actions={actions}
+              listNameOf={listNameOf}
+              onRemove={roadmap.isCustom ? confirmRemoveProblem : undefined}
+              onNoteChange={roadmap.isCustom ? (key, note) => actions.updateProblemNote(roadmap.id, key, note) : undefined}
+              onDragStart={reorderable ? (event) => startDrag(event, { type: 'problem', key: problem.key, category: g.name, subtopic: problem.subtopic }) : undefined}
+              onDragOver={reorderable ? allowDrop : undefined}
+              onDrop={reorderable ? (event) => dropProblemIntoSubheading(event, problem.key, g.name, subtopic) : undefined}
+            />
+          );
           return (
             <section className="group" key={g.name}>
-              <button
-                type="button"
-                className="group-head"
-                aria-expanded={isOpen}
-                disabled={filtering}
-                draggable={reorderable}
-                onDragStart={reorderable ? (event) => startDrag(event, { type: 'category', category: g.name }) : undefined}
-                onDragOver={reorderable ? allowDrop : undefined}
-                onDrop={reorderable ? (event) => dropCategory(event, g.name) : undefined}
-                onClick={() => setOpen((o) => ({ ...o, [g.name]: !isOpen }))}
-              >
-                <ChevronRight size={18} className="chev" aria-hidden="true" />
-                <h3>{g.name}</h3>
-                <span className="group-count">{g.solved}/{g.total}</span>
-                <span className="group-bar"><ProgressBar value={g.solved} max={g.total} tone={g.solved === g.total ? 'easy' : 'accent'} label={`${g.name} progress`} /></span>
-              </button>
+              <div className="group-head-wrap">
+                <button
+                  type="button"
+                  className="group-head"
+                  aria-expanded={isOpen}
+                  disabled={filtering}
+                  draggable={reorderable}
+                  onDragStart={reorderable ? (event) => startDrag(event, { type: 'category', category: g.name }) : undefined}
+                  onDragOver={reorderable ? allowDrop : undefined}
+                  onDrop={reorderable ? (event) => dropCategory(event, g.name) : undefined}
+                  onClick={() => setOpen((o) => ({ ...o, [g.name]: !isOpen }))}
+                >
+                  <ChevronRight size={18} className="chev" aria-hidden="true" />
+                  <h3>{g.name}</h3>
+                  <span className="group-count">{g.solved}/{g.total}</span>
+                  <span className="group-bar"><ProgressBar value={g.solved} max={g.total} tone={g.solved === g.total ? 'easy' : 'accent'} label={`${g.name} progress`} /></span>
+                </button>
+                {roadmap.isCustom && !filtering && <button type="button" className="icon-btn subheading-add" aria-label={`Add subheading to ${g.name}`} onClick={() => promptForSubheading(g.name)}>+</button>}
+              </div>
               {isOpen && (
                 <ul className="rows">
-                  {g.rows.map((p) => {
-                    const showHead = Boolean(p.subtopic) && p.subtopic !== lastSub;
-                    lastSub = p.subtopic;
-                    return (
-                      <Fragment key={p.key}>
-                        {showHead && <li className="subhead" role="presentation">{p.subtopic}</li>}
-                        <ProblemRow
-                          problem={p}
-                          rec={problems[p.key]}
-                          starred={Boolean(stars[p.key])}
-                          lists={catalog.get(p.key).lists}
-                          today={today}
-                          actions={actions}
-                          listNameOf={listNameOf}
-                          onRemove={roadmap.isCustom ? confirmRemoveProblem : undefined}
-                          onNoteChange={roadmap.isCustom ? (key, note) => actions.updateProblemNote(roadmap.id, key, note) : undefined}
-                          onDragStart={reorderable ? (event) => startDrag(event, { type: 'problem', key: p.key, category: g.name }) : undefined}
-                          onDragOver={reorderable ? allowDrop : undefined}
-                          onDrop={reorderable ? (event) => dropProblem(event, p.key, g.name) : undefined}
-                        />
-                      </Fragment>
-                    );
+                  {roadmap.isCustom ? subgroups.map((subgroup) => (
+                    <Fragment key={subgroup.id}>
+                      <li
+                        className="subhead subhead-edit"
+                        role="presentation"
+                        draggable={reorderable && subgroup.id !== `uncategorized:${g.name}`}
+                        onDragStart={reorderable && subgroup.id !== `uncategorized:${g.name}` ? (event) => startDrag(event, { type: 'subheading', id: subgroup.id, category: g.name }) : undefined}
+                        onDragOver={reorderable ? allowDrop : undefined}
+                        onDrop={reorderable ? (event) => dropSubheading(event, subgroup.id, g.name) : undefined}
+                      >
+                        <span>{subgroup.name}</span>
+                        {subgroup.id !== `uncategorized:${g.name}` && <span className="subhead-actions">
+                          <button type="button" className="icon-btn" aria-label={`Rename ${subgroup.name}`} onClick={() => renameSubheading(subgroup)}><Pencil size={14} /></button>
+                          <button type="button" className="icon-btn" aria-label={`Delete ${subgroup.name}`} onClick={() => removeSubheading(subgroup)}><Trash2 size={14} /></button>
+                        </span>}
+                      </li>
+                      {subgroup.rows.map((problem) => renderProblem(problem, subgroup.name))}
+                    </Fragment>
+                  )) : g.rows.map((problem) => {
+                    const showHead = Boolean(problem.subtopic) && problem.subtopic !== lastSub;
+                    lastSub = problem.subtopic;
+                    return <Fragment key={problem.key}>{showHead && <li className="subhead" role="presentation">{problem.subtopic}</li>}{renderProblem(problem, problem.subtopic)}</Fragment>;
                   })}
                 </ul>
               )}

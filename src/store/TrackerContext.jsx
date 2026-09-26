@@ -3,7 +3,7 @@ import { CATALOG, ROADMAPS, ROADMAP_BY_ID, ROADMAP_IDS } from '../data/roadmaps.
 import { addDays, diffDays, plural, todayStr } from '../lib/dates.js';
 import { LADDER, applyReview, describeInterval, newRecord } from '../lib/srs.js';
 import { STORAGE_KEY, exportPayload, freshState, loadState, parseImport, saveState, sanitizeState } from '../lib/storage.js';
-import { buildCustomRoadmap, makeListId, makeProblemEntry } from '../lib/customLists.js';
+import { buildCustomRoadmap, makeListId, makeProblemEntry, makeSubheadingId, sanitizeCustomLists } from '../lib/customLists.js';
 import { useToday } from '../hooks/useToday.js';
 
 const TrackerContext = createContext(null);
@@ -39,7 +39,7 @@ function reducer(state, action) {
     case 'SHOW_ALL_ROADMAPS':
       return { ...state, hiddenRoadmaps: [] };
     case 'CREATE_LIST': {
-      const list = { id: makeListId(), name: action.name, blurb: action.blurb || '', createdAt: todayStr(), problems: [] };
+      const list = { id: makeListId(), name: action.name, blurb: action.blurb || '', createdAt: todayStr(), problems: [], subheadings: [] };
       return { ...state, customLists: [...state.customLists, list], active: list.id };
     }
     case 'RENAME_LIST':
@@ -57,7 +57,17 @@ function reducer(state, action) {
         if (l.id !== action.listId) return l;
         const seen = new Set(l.problems.map((p) => p.key));
         const added = action.problems.filter((p) => !seen.has(p.key));
-        return added.length ? { ...l, problems: [...l.problems, ...added] } : l;
+        if (!added.length) return l;
+        const subheadings = [...(l.subheadings || [])];
+        const known = new Set(subheadings.map((subheading) => `${subheading.category}\u0000${subheading.name}`));
+        added.forEach((problem) => {
+          if (!problem.subtopic) return;
+          const key = `${problem.category}\u0000${problem.subtopic}`;
+          if (known.has(key)) return;
+          known.add(key);
+          subheadings.push({ id: makeSubheadingId(), name: problem.subtopic, category: problem.category });
+        });
+        return { ...l, problems: [...l.problems, ...added], subheadings };
       });
       return { ...state, customLists };
     }
@@ -90,12 +100,53 @@ function reducer(state, action) {
         const problems = [...l.problems];
         const from = problems.findIndex((p) => p.key === action.key);
         const to = problems.findIndex((p) => p.key === action.targetKey);
-        if (from < 0 || to < 0 || problems[from].category !== problems[to].category) return l;
+        if (from < 0 || problems[from].category !== action.category || (action.targetKey && (to < 0 || problems[to].category !== action.category))) return l;
         const [moved] = problems.splice(from, 1);
-        problems.splice(problems.findIndex((p) => p.key === action.targetKey), 0, moved);
+        moved.subtopic = action.subtopic || null;
+        const targetIndex = action.targetKey
+          ? problems.findIndex((p) => p.key === action.targetKey)
+          : problems.length;
+        problems.splice(targetIndex, 0, moved);
         return { ...l, problems };
       });
       return { ...state, customLists };
+    }
+    case 'CREATE_SUBHEADING': {
+      const subheading = { id: makeSubheadingId(), name: action.name, category: action.category };
+      return { ...state, customLists: state.customLists.map((l) => l.id === action.listId ? { ...l, subheadings: [...(l.subheadings || []), subheading] } : l) };
+    }
+    case 'RENAME_SUBHEADING':
+      return {
+        ...state,
+        customLists: state.customLists.map((l) => l.id === action.listId ? {
+          ...l,
+          subheadings: (l.subheadings || []).map((subheading) => subheading.id === action.id ? { ...subheading, name: action.name } : subheading),
+          problems: l.problems.map((p) => p.subtopic === action.oldName && p.category === action.category ? { ...p, subtopic: action.name } : p),
+        } : l),
+      };
+    case 'DELETE_SUBHEADING':
+      return {
+        ...state,
+        customLists: state.customLists.map((l) => l.id === action.listId ? {
+          ...l,
+          subheadings: (l.subheadings || []).filter((subheading) => subheading.id !== action.id),
+          problems: l.problems.map((p) => p.subtopic === action.name && p.category === action.category ? { ...p, subtopic: null } : p),
+        } : l),
+      };
+    case 'MOVE_SUBHEADING': {
+      return {
+        ...state,
+        customLists: state.customLists.map((l) => {
+          if (l.id !== action.listId || action.id === action.targetId) return l;
+          const subheadings = [...(l.subheadings || [])];
+          const from = subheadings.findIndex((subheading) => subheading.id === action.id);
+          const to = subheadings.findIndex((subheading) => subheading.id === action.targetId);
+          if (from < 0 || to < 0 || subheadings[from].category !== subheadings[to].category) return l;
+          const [moved] = subheadings.splice(from, 1);
+          subheadings.splice(subheadings.findIndex((subheading) => subheading.id === action.targetId), 0, moved);
+          return { ...l, subheadings };
+        }),
+      };
     }
     case 'MOVE_CATEGORY': {
       const customLists = state.customLists.map((l) => {
@@ -236,15 +287,27 @@ export function TrackerProvider({ children }) {
       if (!json || json.app !== 'recall-custom-list' || !json.list || typeof json.list !== 'object') {
         return { ok: false, error: 'That file is not a custom list export.' };
       }
-      const list = Array.isArray(json.list.problems) ? { ...json.list, problems: json.list.problems.map((p) => ({ ...p, note: typeof p.note === 'string' ? p.note : '' })) } : { ...json.list, problems: [] };
+      const imported = sanitizeCustomLists([json.list])[0];
+      if (!imported) return { ok: false, error: 'That file does not contain a valid custom list.' };
+      const list = { ...imported, problems: imported.problems.map((p) => ({ ...p, note: typeof p.note === 'string' ? p.note : '' })) };
       dispatch({ type: 'IMPORT_CUSTOM_LIST', list, problems: json.problems || {}, stars: json.stars || {} });
       notify(`Imported “${list.name || 'custom list'}”.`);
       return { ok: true, count: list.problems.length };
     },
     removeProblem: (listId, key) => dispatch({ type: 'REMOVE_PROBLEM', listId, key }),
     updateProblemNote: (listId, key, note) => dispatch({ type: 'UPDATE_PROBLEM_NOTE', listId, key, note: String(note || '').trim() }),
-    moveProblem: (listId, key, targetKey) => dispatch({ type: 'MOVE_PROBLEM', listId, key, targetKey }),
+    moveProblem: (listId, key, targetKey, category, subtopic) => dispatch({ type: 'MOVE_PROBLEM', listId, key, targetKey, category, subtopic }),
     moveCategory: (listId, category, targetCategory) => dispatch({ type: 'MOVE_CATEGORY', listId, category, targetCategory }),
+    createSubheading: (listId, category, name) => {
+      const trimmed = String(name || '').trim();
+      if (trimmed) dispatch({ type: 'CREATE_SUBHEADING', listId, category, name: trimmed });
+    },
+    renameSubheading: (listId, id, category, oldName, name) => {
+      const trimmed = String(name || '').trim();
+      if (trimmed) dispatch({ type: 'RENAME_SUBHEADING', listId, id, category, oldName, name: trimmed });
+    },
+    deleteSubheading: (listId, id, category, name) => dispatch({ type: 'DELETE_SUBHEADING', listId, id, category, name }),
+    moveSubheading: (listId, id, targetId) => dispatch({ type: 'MOVE_SUBHEADING', listId, id, targetId }),
     exportData: () => exportPayload(stateRef.current),
     exportCustomList(listId, includeNotes = false) {
       const list = stateRef.current.customLists.find((l) => l.id === listId);

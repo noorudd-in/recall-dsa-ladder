@@ -11,6 +11,11 @@ export function makeListId() {
   return `custom:${rand}`;
 }
 
+export function makeSubheadingId() {
+  const rand = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `sub:${rand}`;
+}
+
 /** Builds one problem entry for a custom list from raw user/API input. */
 export function makeProblemEntry({ title, url, difficulty, category, subtopic, note }) {
   const cleaned = cleanUrl((url || '').trim()) || null;
@@ -29,7 +34,7 @@ export function makeProblemEntry({ title, url, difficulty, category, subtopic, n
 
 /** Shapes a stored custom list into the same object roadmaps.js exposes for static roadmaps. */
 export function buildCustomRoadmap(list) {
-  return { id: list.id, name: list.name, blurb: list.blurb || 'Your custom list', problems: list.problems, isCustom: true };
+  return { id: list.id, name: list.name, blurb: list.blurb || 'Your custom list', problems: list.problems, subheadings: list.subheadings || [], isCustom: true };
 }
 
 /** Defensive validation for data coming out of localStorage or an imported backup file. */
@@ -54,11 +59,32 @@ export function sanitizeCustomLists(raw) {
       problems.push(entry);
     }
 
+    const subheadings = [];
+    const knownSubheadings = new Set();
+    for (const subheading of Array.isArray(l.subheadings) ? l.subheadings : []) {
+      if (!subheading || typeof subheading !== 'object' || !subheading.name || !subheading.category) continue;
+      const nameValue = String(subheading.name).trim();
+      const categoryValue = String(subheading.category).trim();
+      if (!nameValue || !categoryValue) continue;
+      const id = typeof subheading.id === 'string' ? subheading.id : makeSubheadingId();
+      if (knownSubheadings.has(id)) continue;
+      knownSubheadings.add(id);
+      subheadings.push({ id, name: nameValue, category: categoryValue });
+    }
+    for (const problem of problems) {
+      if (!problem.subtopic) continue;
+      const key = `${problem.category}\u0000${problem.subtopic}`;
+      if (subheadings.some((subheading) => `${subheading.category}\u0000${subheading.name}` === key)) continue;
+      const subheading = { id: makeSubheadingId(), name: problem.subtopic, category: problem.category };
+      subheadings.push(subheading);
+    }
+
     out.push({
       id: l.id,
       name,
       blurb: typeof l.blurb === 'string' ? l.blurb.trim() : '',
       createdAt: typeof l.createdAt === 'string' ? l.createdAt : '',
+      subheadings,
       problems: problems.map((p) => ({
         ...p,
         note: typeof l.problems?.find((row) => row && row.title === p.title && row.url === p.url)?.note === 'string'
